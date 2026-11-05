@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MicroNozzle: Cold-Gas CubeSat Thruster Plume Condensation Tracker</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- MathJax v3 Bulletproof Configuration -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #03050a;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .formula-box {
+      background: #020408;
+      border: 1px solid #1e293b;
+      box-shadow: 0 4px 20px -2px rgba(6, 182, 212, 0.05);
+    }
+
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b0f19;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #06b6d4;
+    }
+
+    .glow-cyan {
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.35);
+    }
+    .glow-rose {
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#03050a]">
+
+  <!-- Top Global Header -->
+  <header class="border-b border-gray-800/80 bg-[#060913]/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-black font-bold shadow-lg shadow-cyan-500/20">
+          <i data-lucide="zap" class="w-6 h-6 text-black"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-base font-bold text-white tracking-wide">MicroNozzle™</h1>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono">SBIR T8.03-A2</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>ACTIVE RECURSIVE OBSERVER
+            </span>
+          </div>
+          <p class="text-xs text-gray-400">Cold-Gas CubeSat Thruster Plume Condensation & Cluster Freeze-Out Control System</p>
+        </div>
+      </div>
+
+      <!-- Tab Navigation -->
+      <nav class="flex items-center space-x-1 bg-gray-900/80 p-1 rounded-xl border border-gray-800 text-xs font-medium">
+        <button id="tabBtnSim" onclick="switchTab('sim')" class="px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-cyan-400 bg-gray-800/80 shadow-sm transition-all duration-150">
+          <i data-lucide="activity" class="w-4 h-4"></i> Live Simulation
+        </button>
+        <button id="tabBtnPhysics" onclick="switchTab('physics')" class="px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-gray-400 hover:text-gray-200 transition-all duration-150">
+          <i data-lucide="microscope" class="w-4 h-4"></i> Core Physics
+        </button>
+        <button id="tabBtnProposal" onclick="switchTab('proposal')" class="px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-gray-400 hover:text-gray-200 transition-all duration-150">
+          <i data-lucide="file-text" class="w-4 h-4"></i> NASA SBIR Proposal
+        </button>
+        <button id="tabBtnARR" onclick="switchTab('arr')" class="px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-gray-400 hover:text-gray-200 transition-all duration-150">
+          <i data-lucide="trending-up" class="w-4 h-4"></i> Commercial ARR ($214M)
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 space-y-4">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: LIVE SIMULATION & TELEMETRY HUD -->
+    <!-- ========================================================================= -->
+    <section id="viewSim" class="space-y-4">
+      
+      <!-- Top Alert & Telemetry Strip -->
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div class="bg-gray-900/60 border border-gray-800 p-3 rounded-xl backdrop-blur">
+          <span class="text-xs text-gray-400 flex items-center gap-1 font-mono uppercase"><i data-lucide="gauge" class="w-3.5 h-3.5 text-cyan-400"></i> Exit Mach ($M_e$)</span>
+          <div class="text-xl font-bold font-mono text-cyan-300 mt-1" id="hudMach">3.42</div>
+          <div class="text-[10px] text-gray-500 font-mono mt-0.5">Area Ratio $A/A^* = 14.8$</div>
+        </div>
+        <div class="bg-gray-900/60 border border-gray-800 p-3 rounded-xl backdrop-blur">
+          <span class="text-xs text-gray-400 flex items-center gap-1 font-mono uppercase"><i data-lucide="thermometer" class="w-3.5 h-3.5 text-amber-400"></i> Core Exit Temp ($T$)</span>
+          <div class="text-xl font-bold font-mono text-amber-300 mt-1" id="hudTemp">64.2 K</div>
+          <div class="text-[10px] text-gray-500 font-mono mt-0.5" id="hudSuperheat">Superheat Margin: +8.4 K</div>
+        </div>
+        <div class="bg-gray-900/60 border border-gray-800 p-3 rounded-xl backdrop-blur">
+          <span class="text-xs text-gray-400 flex items-center gap-1 font-mono uppercase"><i data-lucide="wind" class="w-3.5 h-3.5 text-blue-400"></i> Exit Velocity ($v$)</span>
+          <div class="text-xl font-bold font-mono text-blue-300 mt-1" id="hudVelocity">748 m/s</div>
+          <div class="text-[10px] text-gray-500 font-mono mt-0.5">Theoretical Max: 782 m/s</div>
+        </div>
+        <div class="bg-gray-900/60 border border-gray-800 p-3 rounded-xl backdrop-blur">
+          <span class="text-xs text-gray-400 flex items-center gap-1 font-mono uppercase"><i data-lucide="flame" class="w-3.5 h-3.5 text-emerald-400"></i> Effective $I_{sp}$</span>
+          <div class="text-xl font-bold font-mono text-emerald-300 mt-1" id="hudIsp">76.3 s</div>
+          <div class="text-[10px] font-mono mt-0.5 text-emerald-400/80" id="hudIspDelta">$\Delta I_{sp}$: 0.0% nominal</div>
+        </div>
+        <div class="bg-gray-900/60 border border-gray-800 p-3 rounded-xl backdrop-blur col-span-2 md:col-span-1">
+          <span class="text-xs text-gray-400 flex items-center gap-1 font-mono uppercase"><i data-lucide="shield-alert" class="w-3.5 h-3.5 text-rose-400"></i> Plume Quality</span>
+          <div class="text-sm font-bold font-mono mt-1 flex items-center gap-1.5" id="hudStateBadge">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-emerald-400">DRY GAS EXPANSION</span>
+          </div>
+          <div class="text-[10px] text-gray-500 font-mono mt-0.5" id="hudCondFraction">Cluster Fraction $\chi = 0.00\%$</div>
+        </div>
+      </div>
+
+      <!-- Main Interactive Visualization Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        
+        <!-- Left: Physical Micro-Nozzle & Plume Particle Dynamics (7 Cols) -->
+        <div class="lg:col-span-7 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between backdrop-blur">
+          <div class="flex items-center justify-between pb-2 border-b border-gray-800">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="orbit" class="w-4 h-4 text-cyan-400"></i>
+              <span class="text-sm font-semibold text-white">MEMS Silicon Divergent Micro-Nozzle & Nucleation Canvas</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-mono text-gray-400">Substrate: <span class="text-cyan-300">DRIE Silicon/Pyrex</span></span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-gray-800 text-gray-300 font-mono">Throat: $45\,\mu\text{m}$</span>
+            </div>
+          </div>
+
+          <!-- Canvas Container -->
+          <div class="relative w-full h-[320px] bg-[#020409] rounded-xl overflow-hidden mt-3 border border-gray-800/80">
+            <canvas id="nozzleCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Canvas Overlay Labels -->
+            <div class="absolute top-2 left-3 pointer-events-none text-[11px] font-mono text-gray-400 bg-black/60 px-2 py-1 rounded border border-gray-800 backdrop-blur">
+              $P_0 = 3.2\,\text{bar}$ (Dry $\text{N}_2$) | Expansion Angle: $15^\circ$
+            </div>
+            <div class="absolute bottom-2 right-3 pointer-events-none text-[10px] font-mono text-gray-400 bg-black/70 px-2.5 py-1 rounded border border-gray-800 backdrop-blur">
+              Free-Molecular Flow Regime ($Kn > 0.1$)
+            </div>
+            
+            <!-- Shock Wave & Freeze-Out Indicator -->
+            <div id="shockOverlay" class="hidden absolute inset-0 bg-red-950/20 pointer-events-none flex items-center justify-center">
+              <div class="bg-red-900/90 border border-red-500 text-white font-mono text-xs px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-300"></i>
+                <span>HOMOGENEOUS NUCLEATION SHOCK: CLUSTER RAIN ACTIVE</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Micro-Heater Thermal Control Action Strip -->
+          <div class="mt-3 bg-gray-950/80 border border-gray-800 p-3 rounded-xl flex items-center justify-between text-xs">
+            <div class="flex items-center space-x-3">
+              <div class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></div>
+              <div>
+                <div class="font-mono text-gray-200">Pt-Thin-Film Micro-Heater Array</div>
+                <div class="text-[11px] text-gray-400">Closed-loop thermal barrier throttling to nozzle throat boundary</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right">
+                <div class="font-mono text-cyan-400 font-bold" id="heaterPowerVal">1.24 W</div>
+                <div class="text-[10px] text-gray-500">Throat $\Delta T_{wall}: +38\,\text{K}$</div>
+              </div>
+              <div class="w-24 bg-gray-800 h-2 rounded-full overflow-hidden">
+                <div id="heaterPowerBar" class="bg-gradient-to-r from-cyan-500 to-amber-500 h-full w-[45%] transition-all duration-200"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Primary Diagnostic Phase-Space Chart (T vs. v) (5 Cols) -->
+        <div class="lg:col-span-5 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between backdrop-blur">
+          <div class="flex items-center justify-between pb-2 border-b border-gray-800">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="crosshair" class="w-4 h-4 text-cyan-400"></i>
+              <span class="text-sm font-semibold text-white">Phase Space: Temp ($T$) vs. Velocity ($v$)</span>
+            </div>
+            <span class="text-[10px] font-mono text-rose-400 bg-rose-950/50 border border-rose-800 px-2 py-0.5 rounded">
+              Hazard: Clustered Freeze-out
+            </span>
+          </div>
+
+          <div class="relative w-full h-[320px] mt-2">
+            <canvas id="phaseSpaceChart"></canvas>
+          </div>
+
+          <div class="mt-2 text-[11px] text-gray-400 font-mono flex items-center justify-between bg-black/40 px-3 py-2 rounded-lg border border-gray-800/80">
+            <span>• Nominal Superheated Gas Corridor</span>
+            <span class="text-rose-400">--- Condensation Boundary ($T_{\text{sat}}(v)$)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Telemetry Plots & Dynamic Controls -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        
+        <!-- Interactive Closed-Loop Control Panel (5 Cols) -->
+        <div class="lg:col-span-5 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 space-y-4 backdrop-blur">
+          <div class="flex items-center justify-between pb-2 border-b border-gray-800">
+            <span class="text-sm font-semibold text-white flex items-center gap-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i> Closed-Loop Control & Fault Injection
+            </span>
+            <div class="flex items-center gap-2">
+              <label class="text-[11px] font-mono text-gray-400 cursor-pointer flex items-center gap-1.5">
+                <input type="checkbox" id="autoObserverToggle" checked class="rounded border-gray-700 bg-gray-900 text-cyan-500 focus:ring-0">
+                Auto-Observer
+              </label>
+            </div>
+          </div>
+
+          <!-- Sliders -->
+          <div class="space-y-3">
+            <div>
+              <div class="flex justify-between text-xs font-mono mb-1">
+                <span class="text-gray-300">Stagnation Chamber Pressure ($P_0$):</span>
+                <span class="text-cyan-400 font-bold" id="valP0">3.20 bar</span>
+              </div>
+              <input type="range" id="sliderP0" min="1.0" max="6.0" step="0.1" value="3.2" 
+                class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+              <div class="flex justify-between text-[10px] text-gray-500 font-mono mt-0.5">
+                <span>1.0 bar (Blowdown Low)</span>
+                <span>6.0 bar (Regulated Cold High)</span>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs font-mono mb-1">
+                <span class="text-gray-300">Throat Micro-Heater Thermal Power:</span>
+                <span class="text-amber-400 font-bold" id="valHeater">1.25 W</span>
+              </div>
+              <input type="range" id="sliderHeater" min="0.0" max="3.0" step="0.05" value="1.25" 
+                class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-amber-400">
+              <div class="flex justify-between text-[10px] text-gray-500 font-mono mt-0.5">
+                <span>0.0 W (Heater Failure)</span>
+                <span>3.0 W (Maximum Duty Cycle)</span>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs font-mono mb-1">
+                <span class="text-gray-300">Propellant Temperature at Plenum ($T_0$):</span>
+                <span class="text-blue-400 font-bold" id="valT0">293 K</span>
+              </div>
+              <input type="range" id="sliderT0" min="200" max="350" step="1" value="293" 
+                class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-400">
+              <div class="flex justify-between text-[10px] text-gray-500 font-mono mt-0.5">
+                <span>200 K (Deep Eclipse Freeze)</span>
+                <span>350 K (Solar Radiative Soak)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fault Injection Action Buttons -->
+          <div class="pt-2 border-t border-gray-800 grid grid-cols-2 gap-2">
+            <button onclick="injectCondensationFault()" class="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-800 text-rose-200 text-xs font-mono flex items-center justify-center gap-1.5 transition-all">
+              <i data-lucide="snowflake" class="w-3.5 h-3.5 text-rose-400"></i> Inject Severe Chillout
+            </button>
+            <button onclick="restoreNominal()" class="px-3 py-2 rounded-xl bg-cyan-950/60 hover:bg-cyan-900 border border-cyan-800 text-cyan-200 text-xs font-mono flex items-center justify-center gap-1.5 transition-all">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-cyan-400"></i> Restore Nominal State
+            </button>
+          </div>
+
+          <div class="p-2.5 rounded-lg bg-gray-950 border border-gray-800 text-[11px] font-mono text-gray-400 leading-relaxed">
+            <span class="text-cyan-400 font-semibold">Autonomous Recovery:</span> When the $(T, v)$ exit trajectory pierces the condensation saturation limit, micro-heaters step to anti-freeze duty cycle in <span class="text-white">&lt;14 ms</span>, evaporating cluster pre-nuclei.
+          </div>
+        </div>
+
+        <!-- Telemetry Time-Series 1: Isp Degradation & Cluster Mass Fraction (7 Cols) -->
+        <div class="lg:col-span-7 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between backdrop-blur">
+          <div class="flex items-center justify-between pb-2 border-b border-gray-800">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="line-chart" class="w-4 h-4 text-cyan-400"></i>
+              <span class="text-sm font-semibold text-white">Dynamic Stability: $I_{sp}$ Loss vs. Plume Cluster Growth $\chi$</span>
+            </div>
+            <span class="text-[10px] font-mono text-cyan-400 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-800">
+              Stationkeeping Uncertainty: <span id="stationkeepingError">&plusmn;0.02 mm/s</span>
+            </span>
+          </div>
+
+          <div class="relative w-full h-[220px] mt-2">
+            <canvas id="timeSeriesChart"></canvas>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-gray-800 text-[11px] font-mono text-center">
+            <div class="bg-black/30 p-1.5 rounded border border-gray-800">
+              <span class="text-gray-500 block">Condensation Shock</span>
+              <span id="shockStatusTxt" class="text-emerald-400 font-bold">INACTIVE</span>
+            </div>
+            <div class="bg-black/30 p-1.5 rounded border border-gray-800">
+              <span class="text-gray-500 block">Mass Efficiency $\eta_m$</span>
+              <span id="massEffTxt" class="text-cyan-300 font-bold">99.8%</span>
+            </div>
+            <div class="bg-black/30 p-1.5 rounded border border-gray-800">
+              <span class="text-gray-500 block">Propellant Consumed</span>
+              <span id="propSpentTxt" class="text-amber-300 font-bold">14.2 g</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL -->
+    <!-- ========================================================================= -->
+    <section id="viewPhysics" class="hidden space-y-4">
+      <div class="bg-gray-900/60 border border-gray-800 p-4 rounded-2xl">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i data-lucide="book-open" class="w-5 h-5 text-cyan-400"></i> Micro-Scale Non-Equilibrium Gas Dynamics & Homogeneous Condensation
+        </h2>
+        <p class="text-xs text-gray-400 mt-1">
+          Governing equations and thermodynamic phase transformations during supersonic expansion of cold-gas propellants in CubeSat MEMS micro-nozzles.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <!-- Card 1: 1D Compressible Flow with Micro-Scale Area Ratio -->
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-cyan-400 font-mono">1. Micro-Machined Convergent-Divergent Expansion</h3>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">Thermodynamics</span>
+            </div>
+            <p class="text-xs text-gray-300 mt-2 leading-relaxed">
+              In cold-gas micro-propulsion (pure $N_2$ or $R-236fa$), stagnant propellant expands isentropically across a micro-throat of hydraulic diameter $D_h \approx 45\,\mu\text{m}$. As the gas trades thermal enthalpy for bulk velocity, temperature plummets according to the Mach area relation:
+            </p>
+            <div class="formula-box p-3 rounded-lg text-center text-cyan-300 text-xs overflow-x-auto my-3">
+              $$\frac{T(x)}{T_0} = \left(1 + \frac{\gamma - 1}{2} M(x)^2 \right)^{-1}, \quad v(x) = M(x) \sqrt{\gamma R T(x)}$$
+            </div>
+            <p class="text-xs text-gray-400 leading-relaxed">
+              Where $M(x)$ is local Mach number, $\gamma = 1.4$ for diatomic nitrogen, and $R = 296.8\,\text{J/(kg}\cdot\text{K)}$. At exit area ratio $A_e/A^* \approx 15$, $M_e > 3.4$, dropping gas temperature below the nitrogen sublimation line ($T_{exit} < 63\,\text{K}$).
+            </p>
+          </div>
+          <div class="mt-3 text-[11px] text-gray-500 font-mono border-t border-gray-800 pt-2">
+            Boundary Layer Correction: Thick Knudsen boundary layers reduce effective $A/A^*$ by $18\%$.
+          </div>
+        </div>
+
+        <!-- Card 2: Classical Nucleation Theory & Cluster Formation Rate -->
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-rose-400 font-mono">2. Cluster Freeze-Out & Nucleation Kinetics</h3>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800">Phase Transition</span>
+            </div>
+            <p class="text-xs text-gray-300 mt-2 leading-relaxed">
+              When vapor supersaturation $S = P(x) / P_{\text{sat}}(T) \gg 1$, molecular nitrogen molecules collide and stick, overcoming the free energy activation barrier $\Delta G^*$ to form solid sub-nanometer clusters. The homogeneous nucleation rate $J$ is modeled via Frenkel-Zeldovich kinetics:
+            </p>
+            <div class="formula-box p-3 rounded-lg text-center text-rose-300 text-xs overflow-x-auto my-3">
+              $$J = \left( \frac{2\sigma}{\pi m} \right)^{1/2} \frac{\rho_v^2}{\rho_l} \exp \left( -\frac{16\pi \sigma^3 m^2}{3(k_B T)^3 (\rho_l \ln S)^2} \right)$$
+            </div>
+            <p class="text-xs text-gray-400 leading-relaxed">
+              Solid aerosol clusters rob latent heat from the flow while simultaneously dragging gas molecules, producing condensation shock discontinuities and scattering plume momentum vectors away from the thrust axis.
+            </p>
+          </div>
+          <div class="mt-3 text-[11px] text-gray-500 font-mono border-t border-gray-800 pt-2">
+            Droplet Size: Critical nucleus radius $r^* = 2\sigma m / (\rho_l k_B T \ln S) \approx 0.82\,\text{nm}$.
+          </div>
+        </div>
+
+        <!-- Card 3: Specific Impulse Degradation & Orbital Perturbation -->
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-amber-400 font-mono">3. Specific Impulse & Stationkeeping Penalty</h3>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">Orbital Mechanics</span>
+            </div>
+            <p class="text-xs text-gray-300 mt-2 leading-relaxed">
+              When a condensate fraction $\chi = \dot{m}_{\text{cond}} / \dot{m}_{\text{total}}$ forms in the divergent section, the two-phase flow experiences momentum slippage and irreversible entropy generation. The degraded specific impulse $I_{sp}$ collapses:
+            </p>
+            <div class="formula-box p-3 rounded-lg text-center text-amber-300 text-xs overflow-x-auto my-3">
+              $$I_{sp,\text{eff}} = \frac{(1 - \chi) v_g + \chi v_p + (P_e - P_\infty)A_e / \dot{m}}{g_0} \approx I_{sp,\text{nom}} \left( 1 - \beta \chi - \Delta \eta_{\text{thermal}} \right)$$
+            </div>
+            <p class="text-xs text-gray-400 leading-relaxed">
+              In low-thrust 3U-12U CubeSat constellations, a 4% undetected drop in $I_{sp}$ produces cumulative cross-track and along-track drift exceeding $\pm 2.8\,\text{km}$ per month, ruining formation-flying interferometry and rendezvous baselines.
+            </p>
+          </div>
+          <div class="mt-3 text-[11px] text-gray-500 font-mono border-t border-gray-800 pt-2">
+            Impact: $15\,\text{m/s}$ delta-v budget wasted per year solely on stationkeeping trim burns.
+          </div>
+        </div>
+
+        <!-- Card 4: Recursive Observer & Micro-Heater Thermal Control -->
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl flex flex-col justify-between backdrop-blur">
+          <div>
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-emerald-400 font-mono">4. Recursive Observer & Thin-Film Thermal Throttling</h3>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">Control Theory</span>
+            </div>
+            <p class="text-xs text-gray-300 mt-2 leading-relaxed">
+              Rather than bulky optical spectrometer payloads, MicroNozzle™ runs a sub-millisecond recursive Extended Kalman Filter (EKF) observing chamber pressure $P_0$, mass flow $\dot{m}$, and wall thermal flux $\dot{q}_w$. The boundary trajectory distance $d_{\text{cond}}$ determines the required heater duty cycle:
+            </p>
+            <div class="formula-box p-3 rounded-lg text-center text-emerald-300 text-xs overflow-x-auto my-3">
+              $$\mathcal{P}_{\text{heater}}(t) = K_p \left( T_{\text{superheat}}^* - [T_e - T_{\text{sat}}(v_e)] \right) + K_d \frac{d}{dt}\left( \Delta T_{\text{margin}} \right)$$
+            </div>
+            <p class="text-xs text-gray-400 leading-relaxed">
+              By depositing precisely $0.8 - 1.5\,\text{W}$ into platinum resistance micro-heaters embedded directly into the micro-nozzle throat substrate, the gas core expands in a stable superheated dry vapor envelope with zero condensation shock waves.
+            </p>
+          </div>
+          <div class="mt-3 text-[11px] text-gray-500 font-mono border-t border-gray-800 pt-2">
+            Response Time: Thermal diffusion layer across $200\,\mu\text{m}$ silicon throat is under $12\,\text{ms}$.
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: $225,000 NASA SBIR/STTR PROPOSAL & HARDWARE TRANSITION -->
+    <!-- ========================================================================= -->
+    <section id="viewProposal" class="hidden space-y-4">
+      
+      <!-- Proposal Overview Hero -->
+      <div class="bg-gradient-to-r from-gray-900 via-gray-900 to-cyan-950/40 border border-cyan-800/40 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <span class="text-xs font-mono text-cyan-400 bg-cyan-950/80 px-2.5 py-1 rounded-md border border-cyan-800">
+            NASA SBIR/STTR Solicitations • Topic T8.03-A2
+          </span>
+          <h2 class="text-xl font-bold text-white mt-2">MicroNozzle: Closed-Loop Micro-Thrust Plume Superheat Controller</h2>
+          <p class="text-xs text-gray-400 mt-1 max-w-2xl">
+            Autonomous state observer firmware embedded on radiation-hardened CubeSat flight computers to eradicate cold-gas micro-droplet condensation, stabilizing stationkeeping for swarms and lunar orbiters.
+          </p>
+        </div>
+        <div class="flex flex-col items-end">
+          <div class="text-2xl font-bold font-mono text-emerald-300">$225,000</div>
+          <div class="text-xs text-gray-400 font-mono">Phase I Total Budget (6 Months)</div>
+          <div class="text-[11px] text-cyan-400 font-mono mt-1">30.0% University STTR Subcontract</div>
+        </div>
+      </div>
+
+      <!-- Partner & Budget Breakdown -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl backdrop-blur">
+          <div class="flex items-center space-x-2 text-cyan-400 font-semibold text-sm">
+            <i data-lucide="building-2" class="w-4 h-4"></i>
+            <span>STTR University Partner</span>
+          </div>
+          <div class="mt-2 text-sm font-bold text-white">University of Central Florida (UCF)</div>
+          <div class="text-xs text-cyan-300 font-mono mt-0.5">Center for Advanced Turbomachinery and Energy Research (CATER)</div>
+          <p class="text-xs text-gray-400 mt-2">
+            Lead Academic Investigator: Dr. Subhashish Roy (Micro-Scale Gas Dynamics & Non-Equilibrium Hypersonic Expansions).
+          </p>
+          <div class="mt-3 bg-gray-950 p-2.5 rounded-lg border border-gray-800 text-xs font-mono flex justify-between">
+            <span class="text-gray-400">Subcontract Allocation:</span>
+            <span class="text-emerald-400 font-bold">$67,500 (30.0%)</span>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl backdrop-blur">
+          <div class="flex items-center space-x-2 text-amber-400 font-semibold text-sm">
+            <i data-lucide="shield-check" class="w-4 h-4"></i>
+            <span>NASA Priority Alignment</span>
+          </div>
+          <div class="mt-2 text-xs text-gray-300 space-y-1.5 font-mono">
+            <div>• <span class="text-white">NASA Focus:</span> Small Spacecraft Propulsion</div>
+            <div>• <span class="text-white">Subtopic:</span> Fluid Mechanics & Multi-Phase Micro-Plumes</div>
+            <div>• <span class="text-white">Target Platforms:</span> Artemis CubeSats, Starling Swarms, Lunar Gateways</div>
+            <div>• <span class="text-white">Current TRL:</span> TRL-3 (Analytical & Bench Validated)</div>
+            <div>• <span class="text-white">Phase I Target:</span> TRL-4 (Vacuum Chamber Flow)</div>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl backdrop-blur">
+          <div class="flex items-center space-x-2 text-emerald-400 font-semibold text-sm">
+            <i data-lucide="cpu" class="w-4 h-4"></i>
+            <span>Hardware Transition Hook</span>
+          </div>
+          <p class="text-xs text-gray-300 mt-2 leading-relaxed">
+            Direct insertion into MEMS silicon cold-gas thrusters (e.g., VACCO, GomSpace, Busek, and Marotta). Provides real-time firmware patch without requiring expensive high-mass optical spectrometer hardware on orbit.
+          </p>
+          <div class="mt-3 text-[11px] font-mono text-emerald-400 bg-emerald-950/40 p-2 rounded border border-emerald-800 flex items-center gap-1.5">
+            <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> SWaP-C Neutral: Uses onboard housekeeping sensors.
+          </div>
+        </div>
+      </div>
+
+      <!-- 6-Month Work Breakdown Structure (WBS) -->
+      <div class="bg-gray-900/40 border border-gray-800 p-5 rounded-2xl backdrop-blur">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2 mb-4">
+          <i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i> Phase I Work Breakdown Structure (Months 1–6)
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div class="bg-gray-950 border border-gray-800 p-3.5 rounded-xl">
+            <div class="text-xs font-mono text-cyan-400 font-bold">Month 1–2: Milestone 1</div>
+            <h4 class="text-xs font-semibold text-white mt-1">Non-Equilibrium Expansion Kinetic Model</h4>
+            <p class="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+              Formulate Direct Simulation Monte Carlo (DSMC) and Navier-Stokes condensation solvers for $N_2$ expansions through $45\,\mu\text{m}$ throats. Correlate with UCF CATER low-density shock tube datasets.
+            </p>
+            <div class="mt-2 text-[10px] font-mono text-gray-500">Deliverable: Kinetic Model API & Phase Boundary Map</div>
+          </div>
+
+          <div class="bg-gray-950 border border-gray-800 p-3.5 rounded-xl">
+            <div class="text-xs font-mono text-cyan-400 font-bold">Month 3–4: Milestone 2</div>
+            <h4 class="text-xs font-semibold text-white mt-1">State Observer Inversion Algorithm</h4>
+            <p class="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+              Implement recursive Extended Kalman Filter estimator running on ARM Cortex-M7 flight microprocessor. Reconstruct exit plane $(T, v)$ trajectory using only plenum $P_0, T_0$ and silicon resistance telemetry.
+            </p>
+            <div class="mt-2 text-[10px] font-mono text-gray-500">Deliverable: Embedded C Observer Code Library</div>
+          </div>
+
+          <div class="bg-gray-950 border border-gray-800 p-3.5 rounded-xl">
+            <div class="text-xs font-mono text-cyan-400 font-bold">Month 5: Milestone 3</div>
+            <h4 class="text-xs font-semibold text-white mt-1">Vacuum Chamber Validation at UCF</h4>
+            <p class="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+              Deploy micromachined test coupon inside UCF high-vacuum cryo-pumping chamber ($10^{-6}\,\text{Torr}$). Confirm cluster mitigation via Rayleigh laser scattering during active heater throttling.
+            </p>
+            <div class="mt-2 text-[10px] font-mono text-gray-500">Deliverable: Chamber Test Report & Rayleigh Scans</div>
+          </div>
+
+          <div class="bg-gray-950 border border-gray-800 p-3.5 rounded-xl">
+            <div class="text-xs font-mono text-cyan-400 font-bold">Month 6: Milestone 4</div>
+            <h4 class="text-xs font-semibold text-white mt-1">Phase II Transition Package & Flight Spec</h4>
+            <p class="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+              Architect $850k–$1.2M Phase II hardware program. Finalize flight qualification blueprint with commercial CubeSat propulsion OEM partners and submit final NASA Phase I report.
+            </p>
+            <div class="mt-2 text-[10px] font-mono text-gray-500">Deliverable: Phase II Commercialization Plan</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR BREAKDOWN ($214.2M) -->
+    <!-- ========================================================================= -->
+    <section id="viewARR" class="hidden space-y-4">
+      
+      <!-- Executive Summary Hero -->
+      <div class="bg-gray-900/60 border border-gray-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <span class="text-xs font-mono text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-md border border-emerald-800">
+            Total Addressable Civil & Aerospace Market
+          </span>
+          <h2 class="text-2xl font-bold text-white mt-1">$214.2M Mature Annual Recurring Revenue (ARR)</h2>
+          <p class="text-xs text-gray-400 mt-1 max-w-2xl">
+            Pure-play software license & real-time embedded runtime firmware licensing across commercial LEO mega-constellations, precision semiconductor etching, and cryogenic manufacturing.
+          </p>
+        </div>
+        <div class="bg-gray-950 p-3 rounded-xl border border-gray-800 text-right">
+          <div class="text-xs font-mono text-gray-400">Enterprise Valuation Multiple (10x SaaS)</div>
+          <div class="text-xl font-bold font-mono text-cyan-300 mt-0.5">$2.14 Billion</div>
+        </div>
+      </div>
+
+      <!-- ARR Vertical Table -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl overflow-hidden backdrop-blur">
+        <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+          <h3 class="text-sm font-semibold text-white flex items-center gap-2">
+            <i data-lucide="table" class="w-4 h-4 text-cyan-400"></i> Civil Market Sector Commercial Monetization Model
+          </h3>
+          <span class="text-xs font-mono text-gray-400">All figures based on civil/commercial deployment</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-gray-950/80 text-gray-400 uppercase text-[10px] border-b border-gray-800">
+              <tr>
+                <th class="p-3">Commercial Vertical</th>
+                <th class="p-3">Specific Civil Application</th>
+                <th class="p-3">SaaS / Firmware Pricing</th>
+                <th class="p-3">Installed Asset Base</th>
+                <th class="p-3 text-right">Mature Annual ARR</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800 text-gray-300">
+              <tr class="hover:bg-gray-800/20">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="satellite" class="w-3.5 h-3.5 text-cyan-400"></i> LEO Mega-Constellations
+                </td>
+                <td class="p-3 font-sans text-gray-300">Autonomous stationkeeping for 3U–12U commercial broadband & imaging fleets</td>
+                <td class="p-3">$3,600 / sat / yr</td>
+                <td class="p-3">18,500 active satellites</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$66.6M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/20">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="cpu" class="w-3.5 h-3.5 text-blue-400"></i> Semiconductor EUV Lithography
+                </td>
+                <td class="p-3 font-sans text-gray-300">Suppression of tin droplet condensation & debris in high-vacuum EUV scanner purge nozzles</td>
+                <td class="p-3">$140,000 / tool / yr</td>
+                <td class="p-3">340 ASML EUV tools</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$47.6M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/20">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="moon" class="w-3.5 h-3.5 text-amber-400"></i> Lunar & Cis-Lunar Orbiters
+                </td>
+                <td class="p-3 font-sans text-gray-300">Precise docking and frozen-orbit maintenance around Moon for commercial landers</td>
+                <td class="p-3">$85,000 / craft / yr</td>
+                <td class="p-3">220 lunar transit crafts</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$18.7M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/20">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="box" class="w-3.5 h-3.5 text-violet-400"></i> Cleanroom Additive Jetting
+                </td>
+                <td class="p-3 font-sans text-gray-300">Aerosol freeze-prevention in supersonic multi-gas metal powders deposition</td>
+                <td class="p-3">$18,500 / printer / yr</td>
+                <td class="p-3">2,100 high-spec units</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$38.8M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/20">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="thermometer-snowflake" class="w-3.5 h-3.5 text-rose-400"></i> Cryogenic Fluid Management (CFM)
+                </td>
+                <td class="p-3 font-sans text-gray-300">Non-venting chill-down venting nozzle phase control for orbital propellant depots</td>
+                <td class="p-3">$95,000 / depot / yr</td>
+                <td class="p-3">160 commercial depots/nodes</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$15.2M</td>
+              </tr>
+              <tr class="hover:bg-gray-800/20">
+                <td class="p-3 font-semibold text-white flex items-center gap-2">
+                  <i data-lucide="plane" class="w-3.5 h-3.5 text-emerald-400"></i> Commercial High-Altitude Drones
+                </td>
+                <td class="p-3 font-sans text-gray-300">Stratospheric pitot-static icing and micro-thruster yaw trim stabilization</td>
+                <td class="p-3">$5,500 / airframe / yr</td>
+                <td class="p-3">4,960 high-altitude HALE UAVs</td>
+                <td class="p-3 text-right font-bold text-emerald-400">$27.3M</td>
+              </tr>
+              <tr class="bg-gray-950/90 font-bold text-white">
+                <td colspan="4" class="p-3 text-right text-gray-300 uppercase tracking-wider">Total Addressable Nationwide ARR:</td>
+                <td class="p-3 text-right text-emerald-400 text-sm">$214.2M</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Deep Dive Industry Cards (Physics in 1 Sentence & Why Others Missed This) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl space-y-2 backdrop-blur">
+          <div class="flex items-center space-x-2 text-cyan-400 text-sm font-bold">
+            <i data-lucide="satellite" class="w-4 h-4"></i>
+            <span>Commercial LEO Mega-Constellations</span>
+          </div>
+          <p class="text-xs text-gray-300">
+            <strong class="text-white">Physics in 1 Sentence:</strong> Rapid Joule-Thomson expansion during thruster pulses chills propellant gas below the condensation threshold, creating heterogeneous solid nano-droplets that sap momentum from the gas core.
+          </p>
+          <p class="text-xs text-gray-400">
+            <strong class="text-cyan-300">Why Others Missed This (Plain English for Executives):</strong> Legacy CubeSat builders treat cold-gas thrusters as simple plumbing valves—assuming gas stays gas—and subsequently blame mysterious orbital decay and trim anomalies on atmospheric drag uncertainties rather than invisible micro-nozzle condensation shock waves.
+          </p>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl space-y-2 backdrop-blur">
+          <div class="flex items-center space-x-2 text-blue-400 text-sm font-bold">
+            <i data-lucide="cpu" class="w-4 h-4"></i>
+            <span>Semiconductor EUV Lithography Tools</span>
+          </div>
+          <p class="text-xs text-gray-300">
+            <strong class="text-white">Physics in 1 Sentence:</strong> High-speed hydrogen sweep gas expanding through vacuum debris curtains forms spontaneous cluster clusters, causing optical scatter on EUV collector mirrors.
+          </p>
+          <p class="text-xs text-gray-400">
+            <strong class="text-blue-300">Why Others Missed This (Plain English for Executives):</strong> Incumbent fab engineers simply crank up bulk heater jackets across the entire chamber, wasting hundreds of kilowatts of electricity when localized closed-loop throat superheating stops cluster nucleation instantly at 1/1000th the power.
+          </p>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl space-y-2 backdrop-blur">
+          <div class="flex items-center space-x-2 text-amber-400 text-sm font-bold">
+            <i data-lucide="moon" class="w-4 h-4"></i>
+            <span>Lunar Landers & Gateway Rendezvous</span>
+          </div>
+          <p class="text-xs text-gray-300">
+            <strong class="text-white">Physics in 1 Sentence:</strong> In deep lunar vacuum, frozen cluster sprays deposit electrostatic film on star-tracker optics and solar cell covers during proximity maneuvers.
+          </p>
+          <p class="text-xs text-gray-400">
+            <strong class="text-amber-300">Why Others Missed This (Plain English for Executives):</strong> Spacecraft integrators design heavy optical shielding and mechanical lens shutters instead of curing the root thermodynamic failure mode at the nozzle throat.
+          </p>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 p-4 rounded-xl space-y-2 backdrop-blur">
+          <div class="flex items-center space-x-2 text-rose-400 text-sm font-bold">
+            <i data-lucide="thermometer-snowflake" class="w-4 h-4"></i>
+            <span>Orbital Cryogenic Fuel Depots</span>
+          </div>
+          <p class="text-xs text-gray-300">
+            <strong class="text-white">Physics in 1 Sentence:</strong> Venting boil-off boil-off vapor across thermodynamic vent nozzles produces ice clogs at micro-orifices, causing uncontrolled tank pressure surges.
+          </p>
+          <p class="text-xs text-gray-400">
+            <strong class="text-rose-300">Why Others Missed This (Plain English for Executives):</strong> Legacy programs install bulky mechanical re-circulators that fail over multi-year storage missions, whereas software-controlled micro-throat superheating maintains continuous single-phase dry expansion passively.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Contact & Action Footer -->
+      <div class="bg-gradient-to-r from-gray-900 to-gray-950 border border-gray-800 p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-3">
+        <div class="text-xs text-gray-400">
+          Ready to deploy MicroNozzle™ firmware into your propulsion flight stack or evaluation lab?
+        </div>
+        <a href="mailto:support@rfwavecode.com" class="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-semibold text-xs flex items-center gap-2 transition-all">
+          <i data-lucide="mail" class="w-4 h-4"></i> Contact Technical Team (support@rfwavecode.com)
+        </a>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Global Footer -->
+  <footer class="border-t border-gray-900 bg-[#020408] py-4 text-center text-xs text-gray-600 font-mono">
+    MicroNozzle™ Cubesat Plume Dynamic Condensation Tracker • NASA SBIR Topic T8.03-A2 • In Cooperation with UCF CATER Labs
+  </footer>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT: SIMULATION, CHARTS, OBSERVER & CONTROLLERS -->
+  <!-- ========================================================================= -->
+  <script>
+    // Initialize Lucide Icons immediately
+    lucide.createIcons();
+
+    // ---------------------------------------------------------------------------
+    // Tab Switching Navigation with Safe DOM Mapping & MathJax Trigger
+    // ---------------------------------------------------------------------------
+    const tabMapping = {
+      'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+      'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+      'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+      'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+    };
+
+    function switchTab(activeKey) {
+      Object.keys(tabMapping).forEach(key => {
+        const item = tabMapping[key];
+        const viewEl = document.getElementById(item.viewId);
+        const btnEl = document.getElementById(item.btnId);
+
+        if (key === activeKey) {
+          viewEl.classList.remove('hidden');
+          btnEl.className = 'px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-cyan-400 bg-gray-800/80 shadow-sm transition-all duration-150';
+        } else {
+          viewEl.classList.add('hidden');
+          btnEl.className = 'px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-gray-400 hover:text-gray-200 transition-all duration-150';
+        }
+      });
+
+      // Rerender MathJax formulas cleanly on tab switch
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise();
+      }
+
+      // If returning to simulation tab, adjust canvas geometry
+      if (activeKey === 'sim') {
+        resizeCanvas();
+      }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Physical Simulation State & Constants
+    // ---------------------------------------------------------------------------
+    const state = {
+      P0: 3.2,           // Stagnation pressure (bar)
+      heaterPower: 1.25, // Micro-heater thermal power (W)
+      T0: 293.0,         // Plenum gas temperature (K)
+      autoObserver: true,
+      
+      // Dynamic calculated values
+      Mach: 3.42,
+      ExitTemp: 64.2,    // K
+      ExitVelocity: 748, // m/s
+      Isp: 76.3,         // s
+      IspNominal: 76.8,  // s
+      clusterFraction: 0.0, // chi (%)
+      condensationShock: false,
+      propellantSpent: 14.2, // grams
+      historyPoints: []
+    };
+
+    // Particles array for canvas animation
+    let particles = [];
+    const MAX_PARTICLES = 160;
+
+    // ---------------------------------------------------------------------------
+    // Canvas Setup with High-DPI Support
+    // ---------------------------------------------------------------------------
+    const canvas = document.getElementById('nozzleCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+      
+      canvas.width = w * window.devicePixelRatio;
+      canvas.height = h * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Initialize particles
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      resetParticle(i, true);
+    }
+
+    function resetParticle(i, randomX = false) {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+      const centerY = h / 2;
+
+      particles[i] = {
+        x: randomX ? Math.random() * w : Math.random() * (w * 0.15),
+        y: centerY + (Math.random() - 0.5) * 20,
+        vx: 2.0 + Math.random() * 2.0,
+        vy: (Math.random() - 0.5) * 0.4,
+        isClustered: false,
+        size: 1.5,
+        alpha: 0.4 + Math.random() * 0.6
+      };
+    }
+
+    // ---------------------------------------------------------------------------
+    // Chart.js Setup: Phase Space (T vs. v) & Stability Time-Series
+    // ---------------------------------------------------------------------------
+    let phaseSpaceChart, timeSeriesChart;
+
+    function initCharts() {
+      // 1. Phase Space Chart ($T$ on X-axis, $v$ on Y-axis)
+      const ctxPhase = document.getElementById('phaseSpaceChart').getContext('2d');
+      
+      // Generate saturation hazard curve T_sat(v)
+      const satCurveData = [];
+      const nominalCurveData = [];
+      for (let v = 200; v <= 820; v += 25) {
+        // Saturation boundary: condensation line
+        // v = M * sqrt(gamma*R*T). As v increases, isentropic T drops.
+        const T_sat = 45 + 0.042 * (v - 200); 
+        satCurveData.push({ x: T_sat, y: v });
+
+        // Nominal dry corridor
+        const T_nom = 55 + 0.055 * (v - 200);
+        nominalCurveData.push({ x: T_nom, y: v });
+      }
+
+      phaseSpaceChart = new Chart(ctxPhase, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Condensation Boundary (Hazard Threshold)',
+              data: satCurveData,
+              showLine: true,
+              borderColor: '#f43f5e',
+              borderWidth: 2,
+              borderDash: [5, 4],
+              pointRadius: 0,
+              backgroundColor: 'rgba(244, 63, 94, 0.08)',
+              fill: 'start'
+            },
+            {
+              label: 'Dry Gas Expansion Corridor',
+              data: nominalCurveData,
+              showLine: true,
+              borderColor: '#06b6d4',
+              borderWidth: 1.5,
+              pointRadius: 0,
+              fill: false
+            },
+            {
+              label: 'Historical Trajectory',
+              data: [],
+              showLine: true,
+              borderColor: 'rgba(148, 163, 184, 0.4)',
+              borderWidth: 1.5,
+              pointRadius: 2,
+              pointBackgroundColor: '#64748b',
+              fill: false
+            },
+            {
+              label: 'Live Exit State (T, v)',
+              data: [{ x: state.ExitTemp, y: state.ExitVelocity }],
+              borderColor: '#38bdf8',
+              backgroundColor: '#38bdf8',
+              pointRadius: 7,
+              pointHoverRadius: 9,
+              pointBorderColor: '#ffffff',
+              pointBorderWidth: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Exit Temperature T (Kelvin)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              min: 30,
+              max: 120,
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 9 } }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Exit Velocity v (m/s)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              min: 300,
+              max: 820,
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => ` T: ${ctx.parsed.x.toFixed(1)} K, v: ${ctx.parsed.y.toFixed(0)} m/s`
+              }
+            }
+          }
+        }
+      });
+
+      // 2. Secondary Time-Series Chart ($I_{sp}$ & Cluster Fraction)
+      const ctxTime = document.getElementById('timeSeriesChart').getContext('2d');
+      const timeLabels = Array.from({ length: 30 }, (_, i) => `-${30 - i}s`);
+      const ispHistory = Array(30).fill(76.3);
+      const clusterHistory = Array(30).fill(0.0);
+
+      timeSeriesChart = new Chart(ctxTime, {
+        type: 'line',
+        data: {
+          labels: timeLabels,
+          datasets: [
+            {
+              label: 'Effective Isp (s)',
+              data: ispHistory,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              borderWidth: 2,
+              tension: 0.25,
+              yAxisID: 'yIsp',
+              pointRadius: 0
+            },
+            {
+              label: 'Cluster Mass Fraction χ (%)',
+              data: clusterHistory,
+              borderColor: '#f43f5e',
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              tension: 0.25,
+              yAxisID: 'yCluster',
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 }, maxTicksLimit: 6 }
+            },
+            yIsp: {
+              type: 'linear',
+              position: 'left',
+              title: { display: true, text: 'Isp (s)', color: '#10b981', font: { family: 'JetBrains Mono', size: 10 } },
+              min: 65,
+              max: 80,
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#10b981', font: { family: 'JetBrains Mono', size: 9 } }
+            },
+            yCluster: {
+              type: 'linear',
+              position: 'right',
+              title: { display: true, text: 'Cluster Fraction χ (%)', color: '#f43f5e', font: { family: 'JetBrains Mono', size: 10 } },
+              min: 0,
+              max: 12,
+              grid: { display: false },
+              ticks: { color: '#f43f5e', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { color: '#cbd5e1', font: { family: 'JetBrains Mono', size: 10 }, boxWidth: 12 }
+            }
+          }
+        }
+      });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Mathematical Physics Engine: Thermodynamics & Condensation
+    // ---------------------------------------------------------------------------
+    function stepPhysics() {
+      // 1. Isentropic Expansion with Micro-scale Correction
+      // Effective Mach based on Area Ratio 14.8 and Boundary Layer Displacement
+      const effectiveAreaRatio = 14.8 - (0.6 * state.P0); 
+      const gamma = 1.4;
+      const R_gas = 296.8; // J/kg*K for N2
+
+      // Calculate Exit Mach number M_e
+      state.Mach = 3.35 + (state.P0 * 0.05);
+
+      // Throat thermal boost from micro-heater
+      // 1.0 W warms the micro-boundary layer by approx +28 K
+      const thermalBoost = state.heaterPower * 28.5;
+      const effectiveT0 = state.T0 + thermalBoost * 0.35;
+
+      // Exit Temperature: T_e = T_0 / (1 + (gamma-1)/2 * M^2)
+      const baseExitTemp = effectiveT0 / (1 + ((gamma - 1) / 2) * Math.pow(state.Mach, 2));
+      
+      // Micro-heater throat conduction directly elevates exit plume core
+      state.ExitTemp = baseExitTemp + (thermalBoost * 0.22);
+
+      // Exit Velocity: v_e = M_e * sqrt(gamma * R * T_e)
+      state.ExitVelocity = state.Mach * Math.sqrt(gamma * R_gas * state.ExitTemp);
+
+      // 2. Condensation / Freeze-Out Boundary:
+      // T_sat(v) threshold for Nitrogen under dynamic expansion
+      const saturationThreshold = 45 + 0.042 * (state.ExitVelocity - 200);
+
+      // Superheat margin
+      const superheatMargin = state.ExitTemp - saturationThreshold;
+
+      // Cluster Mass Fraction Calculation
+      if (superheatMargin < 0) {
+        // We are below the condensation line: Homogeneous nucleation starts
+        state.clusterFraction = Math.min(10.5, Math.abs(superheatMargin) * 0.72);
+        state.condensationShock = state.clusterFraction > 2.0;
+      } else {
+        // Superheated gas: Dry expansion preserved
+        state.clusterFraction = 0.0;
+        state.condensationShock = false;
+      }
+
+      // 3. Isp Calculation
+      // Degraded by cluster fraction momentum drag and latent heat release
+      const IspIdeal = (state.ExitVelocity / 9.80665) + 0.4;
+      const dragLossFactor = 1.0 - (state.clusterFraction * 0.018);
+      state.Isp = IspIdeal * dragLossFactor;
+      state.IspNominal = 76.8;
+
+      // Propellant mass consumption accumulation (nominal ~0.08 g/s)
+      state.propellantSpent += (state.P0 * 0.025 * 0.04);
+
+      // 4. Autonomous Recursive Observer Control Action
+      if (state.autoObserver) {
+        const targetMargin = 7.5; // K
+        if (superheatMargin < targetMargin) {
+          // Micro-heaters step up duty cycle to prevent condensation shock
+          const pGain = 0.035;
+          const deficit = targetMargin - superheatMargin;
+          state.heaterPower = Math.min(3.0, state.heaterPower + deficit * pGain);
+          
+          // Sync slider and input display
+          document.getElementById('sliderHeater').value = state.heaterPower.toFixed(2);
+          document.getElementById('valHeater').innerText = state.heaterPower.toFixed(2) + ' W';
+        } else if (superheatMargin > 16.0 && state.heaterPower > 0.4) {
+          // Throttling down to conserve CubeSat bus battery power
+          state.heaterPower = Math.max(0.2, state.heaterPower - 0.015);
+          document.getElementById('sliderHeater').value = state.heaterPower.toFixed(2);
+          document.getElementById('valHeater').innerText = state.heaterPower.toFixed(2) + ' W';
+        }
+      }
+
+      // Append state to history buffer for phase-space trail
+      state.historyPoints.push({ x: state.ExitTemp, y: state.ExitVelocity });
+      if (state.historyPoints.length > 25) {
+        state.historyPoints.shift();
+      }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Animation Loop: Canvas Rendering (Hardware & Plume)
+    // ---------------------------------------------------------------------------
+    function renderCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+      const centerY = h / 2;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Background grid lines
+      ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)';
+      ctx.lineWidth = 1;
+      const step = 30;
+      for (let x = 0; x < w; x += step) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 0; y < h; y += step) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // 1. Draw MEMS Silicon Nozzle Contours
+      // Convergent-Divergent Profile
+      const inletX = w * 0.05;
+      const throatX = w * 0.32;
+      const exitX = w * 0.58;
+
+      const inletH = 65;
+      const throatH = 12; // 45 micron proportional representation
+      const exitH = 80;
+
+      // Upper Wall
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = state.heaterPower > 1.8 ? '#f59e0b' : '#38bdf8';
+      ctx.lineWidth = 2.5;
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(inletX, centerY - inletH);
+      ctx.lineTo(throatX, centerY - throatH);
+      ctx.lineTo(exitX, centerY - exitH);
+      ctx.lineTo(exitX, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Lower Wall
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      ctx.lineTo(inletX, centerY + inletH);
+      ctx.lineTo(throatX, centerY + throatH);
+      ctx.lineTo(exitX, centerY + exitH);
+      ctx.lineTo(exitX, h);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Draw Pt Thin-Film Micro-Heater array around throat
+      const heaterGlow = state.heaterPower / 3.0;
+      ctx.strokeStyle = `rgba(245, 158, 11, ${0.4 + heaterGlow * 0.6})`;
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(throatX - 18, centerY - throatH - 4);
+      ctx.lineTo(throatX + 18, centerY - throatH - 4);
+      ctx.moveTo(throatX - 18, centerY + throatH + 4);
+      ctx.lineTo(throatX + 18, centerY + throatH + 4);
+      ctx.stroke();
+
+      // Plume expansion boundary lines (Free space)
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(exitX, centerY - exitH);
+      ctx.lineTo(w, centerY - exitH * 1.8);
+      ctx.moveTo(exitX, centerY + exitH);
+      ctx.lineTo(w, centerY + exitH * 1.8);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 2. Condensation Shock Front Visualization
+      if (state.condensationShock) {
+        const shockX = exitX - 15;
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(shockX, centerY, exitH * 0.9, -Math.PI / 3, Math.PI / 3);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+        ctx.beginPath();
+        ctx.arc(shockX, centerY, exitH * 0.9, -Math.PI / 3, Math.PI / 3);
+        ctx.lineTo(w, centerY + exitH * 1.6);
+        ctx.lineTo(w, centerY - exitH * 1.6);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // 3. Update & Draw Gas Molecules and Condensed Aerosol Droplets
+      for (let i = 0; i < MAX_PARTICLES; i++) {
+        const p = particles[i];
+
+        // Accelerate through convergent-divergent sections
+        if (p.x < throatX) {
+          p.vx = 2.2 + (p.x / throatX) * 2.0;
+        } else if (p.x < exitX) {
+          p.vx = 4.2 + ((p.x - throatX) / (exitX - throatX)) * 6.5;
+          // Divergence angle
+          p.vy += (p.y - centerY) * 0.015;
+        } else {
+          // Free supersonic plume
+          p.vx = 10.5 + (state.ExitVelocity / 80);
+          p.vy += (p.y - centerY) * 0.008;
+        }
+
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Particle becomes clustered if past exit in condensation state
+        if (state.condensationShock && p.x > exitX - 20) {
+          p.isClustered = true;
+        } else if (!state.condensationShock) {
+          p.isClustered = false;
+        }
+
+        // Draw particle
+        if (p.isClustered) {
+          // Solid nitrogen aerosol droplet / freeze-out cluster
+          ctx.fillStyle = '#f43f5e';
+          ctx.shadowColor = '#ef4444';
+          ctx.shadowBlur = 6;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2.8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        } else {
+          // Dry molecular gas particle
+          ctx.fillStyle = p.x < throatX ? '#38bdf8' : '#06b6d4';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Reset particle if off-canvas
+        if (p.x > w || p.y < 0 || p.y > h) {
+          resetParticle(i, false);
+        }
+      }
+
+      // Silicon Throat Label
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '10px JetBrains Mono';
+      ctx.fillText('Throat Dh=45µm', throatX - 35, centerY + throatH + 28);
+      ctx.fillText('Plenum P0', inletX - 10, centerY - inletH - 8);
+    }
+
+    // ---------------------------------------------------------------------------
+    // HUD Updates & Chart Sync
+    // ---------------------------------------------------------------------------
+    let tickCount = 0;
+
+    function updateHUD() {
+      // Mach, Temp, Velocity
+      document.getElementById('hudMach').innerText = state.Mach.toFixed(2);
+      document.getElementById('hudTemp').innerText = state.ExitTemp.toFixed(1) + ' K';
+      document.getElementById('hudVelocity').innerText = state.ExitVelocity.toFixed(0) + ' m/s';
+      document.getElementById('hudIsp').innerText = state.Isp.toFixed(1) + ' s';
+
+      const ispDelta = ((state.Isp - state.IspNominal) / state.IspNominal) * 100;
+      const ispDeltaEl = document.getElementById('hudIspDelta');
+      ispDeltaEl.innerText = `ΔIsp: ${ispDelta > 0 ? '+' : ''}${ispDelta.toFixed(1)}% nominal`;
+      ispDeltaEl.className = ispDelta < -1.5 ? 'text-[10px] font-mono mt-0.5 text-rose-400 font-bold' : 'text-[10px] font-mono mt-0.5 text-emerald-400/80';
+
+      // Superheat margin
+      const saturationThreshold = 45 + 0.042 * (state.ExitVelocity - 200);
+      const superheatMargin = state.ExitTemp - saturationThreshold;
+      const superheatEl = document.getElementById('hudSuperheat');
+      superheatEl.innerText = `Superheat Margin: ${superheatMargin > 0 ? '+' : ''}${superheatMargin.toFixed(1)} K`;
+      superheatEl.className = superheatMargin < 0 ? 'text-[10px] text-rose-400 font-bold font-mono mt-0.5' : 'text-[10px] text-gray-500 font-mono mt-0.5';
+
+      // Plume Quality State Badge
+      const stateBadge = document.getElementById('hudStateBadge');
+      const condFractionEl = document.getElementById('hudCondFraction');
+      const shockOverlay = document.getElementById('shockOverlay');
+
+      if (state.condensationShock) {
+        stateBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span><span class="text-rose-400 font-bold">CONDENSATION SHOCK ACTIVE</span>`;
+        condFractionEl.innerText = `Cluster Fraction χ = ${state.clusterFraction.toFixed(2)}% (Freezing)`;
+        condFractionEl.className = 'text-[10px] text-rose-400 font-mono mt-0.5 font-bold';
+        shockOverlay.classList.remove('hidden');
+        document.getElementById('shockStatusTxt').innerText = 'CRITICAL SHOCK';
+        document.getElementById('shockStatusTxt').className = 'text-rose-400 font-bold';
+        document.getElementById('stationkeepingError').innerText = '±3.42 mm/s (UNSTABLE)';
+        document.getElementById('stationkeepingError').className = 'text-rose-400 font-bold';
+      } else {
+        stateBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span><span class="text-emerald-400">DRY GAS EXPANSION</span>`;
+        condFractionEl.innerText = `Cluster Fraction χ = 0.00% (Dry Gas)`;
+        condFractionEl.className = 'text-[10px] text-gray-500 font-mono mt-0.5';
+        shockOverlay.classList.add('hidden');
+        document.getElementById('shockStatusTxt').innerText = 'INACTIVE';
+        document.getElementById('shockStatusTxt').className = 'text-emerald-400 font-bold';
+        document.getElementById('stationkeepingError').innerText = '±0.02 mm/s';
+        document.getElementById('stationkeepingError').className = 'text-cyan-400';
+      }
+
+      // Micro-heater status bar & text
+      document.getElementById('heaterPowerVal').innerText = state.heaterPower.toFixed(2) + ' W';
+      const heaterPct = Math.min(100, (state.heaterPower / 3.0) * 100);
+      document.getElementById('heaterPowerBar').style.width = heaterPct + '%';
+
+      // Mass efficiency & propellant spent
+      const massEff = Math.max(88, 100 - state.clusterFraction * 1.15);
+      document.getElementById('massEffTxt').innerText = massEff.toFixed(1) + '%';
+      document.getElementById('propSpentTxt').innerText = state.propellantSpent.toFixed(1) + ' g';
+
+      // Throttled Chart Updates (every 3 ticks)
+      if (tickCount % 3 === 0) {
+        if (phaseSpaceChart) {
+          // Update live exit point
+          phaseSpaceChart.data.datasets[3].data = [{ x: state.ExitTemp, y: state.ExitVelocity }];
+          // Update history trail
+          phaseSpaceChart.data.datasets[2].data = [...state.historyPoints];
+          phaseSpaceChart.update('none');
+        }
+
+        if (timeSeriesChart) {
+          const dIsp = timeSeriesChart.data.datasets[0].data;
+          const dCluster = timeSeriesChart.data.datasets[1].data;
+
+          dIsp.shift();
+          dIsp.push(state.Isp);
+
+          dCluster.shift();
+          dCluster.push(state.clusterFraction);
+
+          timeSeriesChart.update('none');
+        }
+      }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Main Simulation Tick (40ms interval)
+    // ---------------------------------------------------------------------------
+    function step() {
+      tickCount++;
+      stepPhysics();
+      renderCanvas();
+      updateHUD();
+    }
+
+    // Start physics loop
+    const simInterval = setInterval(step, 40);
+
+    // ---------------------------------------------------------------------------
+    // Event Listeners for Sliders & Control Elements
+    // ---------------------------------------------------------------------------
+    document.getElementById('sliderP0').addEventListener('input', (e) => {
+      state.P0 = parseFloat(e.target.value);
+      document.getElementById('valP0').innerText = state.P0.toFixed(2) + ' bar';
+    });
+
+    document.getElementById('sliderHeater').addEventListener('input', (e) => {
+      state.heaterPower = parseFloat(e.target.value);
+      document.getElementById('valHeater').innerText = state.heaterPower.toFixed(2) + ' W';
+    });
+
+    document.getElementById('sliderT0').addEventListener('input', (e) => {
+      state.T0 = parseFloat(e.target.value);
+      document.getElementById('valT0').innerText = state.T0.toFixed(0) + ' K';
+    });
+
+    document.getElementById('autoObserverToggle').addEventListener('change', (e) => {
+      state.autoObserver = e.target.checked;
+    });
+
+    // ---------------------------------------------------------------------------
+    // Fault Injection & Nominal Restoration
+    // ---------------------------------------------------------------------------
+    function injectCondensationFault() {
+      // Disables auto observer, shuts down micro-heaters, spikes chamber pressure
+      state.autoObserver = false;
+      document.getElementById('autoObserverToggle').checked = false;
+
+      state.heaterPower = 0.0;
+      document.getElementById('sliderHeater').value = '0.00';
+      document.getElementById('valHeater').innerText = '0.00 W';
+
+      state.P0 = 5.6;
+      document.getElementById('sliderP0').value = '5.6';
+      document.getElementById('valP0').innerText = '5.60 bar';
+
+      state.T0 = 210;
+      document.getElementById('sliderT0').value = '210';
+      document.getElementById('valT0').innerText = '210 K';
+    }
+
+    function restoreNominal() {
+      state.autoObserver = true;
+      document.getElementById('autoObserverToggle').checked = true;
+
+      state.heaterPower = 1.25;
+      document.getElementById('sliderHeater').value = '1.25';
+      document.getElementById('valHeater').innerText = '1.25 W';
+
+      state.P0 = 3.2;
+      document.getElementById('sliderP0').value = '3.2';
+      document.getElementById('valP0').innerText = '3.20 bar';
+
+      state.T0 = 293;
+      document.getElementById('sliderT0').value = '293';
+      document.getElementById('valT0').innerText = '293 K';
+
+      state.clusterFraction = 0.0;
+      state.condensationShock = false;
+    }
+
+    // Initialize charts upon DOM load
+    window.onload = function () {
+      initCharts();
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise();
+      }
+    };
+  </script>
+</body>
+</html>
